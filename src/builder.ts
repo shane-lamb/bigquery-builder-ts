@@ -8,7 +8,7 @@ import {
     TablePartialName,
 } from './types'
 
-export interface BigqueryModelBuilderConfig {
+export interface BigQueryModelBuilderConfig {
     nameTransform: (partialName: TablePartialName) => TableFullName
 }
 
@@ -17,12 +17,12 @@ export interface Logger {
     debug: (message: string, props?: any) => void
 }
 
-export class BigqueryModelBuilder {
+export class BigQueryModelBuilder {
     private isBuilding = false
 
     constructor(
         private bigquery: BigQuery,
-        private config: BigqueryModelBuilderConfig,
+        private config: BigQueryModelBuilderConfig,
         private log: Logger = console,
     ) {}
 

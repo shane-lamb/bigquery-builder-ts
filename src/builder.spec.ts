@@ -1,9 +1,9 @@
 import { BigQueryModel, FullRefreshBigQueryModel, ModelType } from './types'
 import { describe, it, expect, beforeEach } from '@jest/globals'
-import { BigqueryModelBuilder } from './builder'
+import { BigQueryModelBuilder } from './builder'
 import { BigQueryDate } from '@google-cloud/bigquery'
 import {
-    getLocalBigQuery,
+    localBigQuery,
     localBigQueryProject,
     localNameTransform,
 } from './local-bigquery'
@@ -51,9 +51,11 @@ describe('BigQuery Model Builder', () => {
         await builder.build(
             fullRefreshModel(
                 dailyTempsTable2,
-                ({ model }) => `select *
-                        from ${model(dependency)}
-                        WHERE temp_c > 30`,
+                ({ model }) => `
+                    select *
+                    from ${model(dependency)}
+                    WHERE temp_c > 30
+                `,
             ),
         )
 
@@ -75,12 +77,12 @@ describe('BigQuery Model Builder', () => {
         const model = fullRefreshModel(
             dailyTempsTable2,
             ({ model }) => `
-          select *
-          from ${model(dependency)}
-          union all
-          select *
-          from ${model(dependency)}
-      `,
+                select *
+                from ${model(dependency)}
+                union all
+                select *
+                from ${model(dependency)}
+            `,
         )
         await builder.build(model)
 
@@ -103,12 +105,12 @@ describe('BigQuery Model Builder', () => {
         const model = fullRefreshModel(
             dailyTempsTable2,
             ({ model }) => `
-          select *
-          from ${model(dependencyA)}
-          union all
-          select *
-          from ${model(dependencyB)}
-      `,
+                select *
+                from ${model(dependencyA)}
+                union all
+                select *
+                from ${model(dependencyB)}
+            `,
         )
 
         await expect(builder.build(model)).rejects.toThrowError(
@@ -126,17 +128,17 @@ describe('BigQuery Model Builder', () => {
         depA = fullRefreshModel(
             'a',
             ({ model }) => `select *
-                      from ${model(depB)}`,
+                            from ${model(depB)}`,
         )
         depB = fullRefreshModel(
             'b',
             ({ model }) => `select *
-                      from ${model(depC)}`,
+                            from ${model(depC)}`,
         )
         depC = fullRefreshModel(
             'c',
             ({ model }) => `select *
-                      from ${model(depA)}`,
+                            from ${model(depA)}`,
         )
 
         await expect(builder.build(depA)).rejects.toThrowError(
@@ -189,7 +191,7 @@ describe('BigQuery Model Builder', () => {
     })
 })
 
-let builder: BigqueryModelBuilder
+let builder: BigQueryModelBuilder
 
 const datasetName = 'test_dataset'
 const dailyTempsTable = 'daily_temps'
@@ -200,7 +202,7 @@ const dailyTempsSchema = [
     { name: 'temp_c', type: 'FLOAT' },
 ]
 
-const bq = getLocalBigQuery({
+const bq = localBigQuery({
     [dailyTempsTable]: dailyTempsSchema,
     [dailyTempsTable2]: dailyTempsSchema,
 })
@@ -235,12 +237,12 @@ async function tableRows(tableName: string) {
         return []
     }
     const [rows] = await bq.query(`SELECT *
-                                 FROM ${datasetName}.${tableName}`)
+                                   FROM ${datasetName}.${tableName}`)
     return rows
 }
 
 function newBuilder() {
-    return new BigqueryModelBuilder(bq, {
+    return new BigQueryModelBuilder(bq, {
         nameTransform: localNameTransform(datasetName),
     })
 }

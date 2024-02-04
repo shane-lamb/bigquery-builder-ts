@@ -5,21 +5,21 @@ export type TableSchema = { name: string; type: string }[]
 
 export const localBigQueryProject = 'local-test-project'
 
-let localBigQuery: BigQuery
+let _localBigQuery: BigQuery
 
-function getlocalBigQueryUnwrapped() {
-    return (localBigQuery =
-        localBigQuery ??
+function localBigQueryUnwrapped() {
+    return (_localBigQuery =
+        _localBigQuery ??
         new BigQuery({
             projectId: localBigQueryProject,
             apiEndpoint: 'http://0.0.0.0:9050',
         }))
 }
 
-export function getLocalBigQuery(tableSchemaMap: {
+export function localBigQuery(tableSchemaMap: {
     [tableName: string]: TableSchema
 }) {
-    const bq = getlocalBigQueryUnwrapped()
+    const bq = localBigQueryUnwrapped()
     return new Proxy(bq, {
         get: (target, prop, receiver) => {
             const value = Reflect.get(target, prop, receiver)

@@ -1,3 +1,3 @@
-export { BigqueryModelBuilder, BigqueryModelBuilderConfig } from './builder'
+export { BigQueryModelBuilder, BigQueryModelBuilderConfig } from './builder'
 export { BigQueryModel, ModelType, TableFullName, TablePartialName, NameResolver, FullRefreshBigQueryModel } from './types'
-export { getLocalBigQuery, localNameTransform, localBigQueryProject } from './local-bigquery'
+export { localBigQuery, localNameTransform, localBigQueryProject } from './local-bigquery'

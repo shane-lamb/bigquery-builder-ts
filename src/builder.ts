@@ -63,36 +63,34 @@ export class BigqueryModelBuilder {
 
         // todo: if already exists, check partitioning and clustering are equal to config
 
-        switch (model.type) {
-            case ModelType.FullRefresh:
-                const sql = model.sql(resolver)
-                for (const dep of dependencies) {
-                    if (dependencyChain.includes(dep)) {
-                        throw new Error('Circular dependency detected.')
-                    }
-                    await this.buildStep(dep, dryRun, usedInRun, [
-                        ...dependencyChain,
-                        model,
-                    ])
+        if (model.type === ModelType.FullRefresh) {
+            const sql = model.sql(resolver)
+            for (const dep of dependencies) {
+                if (dependencyChain.includes(dep)) {
+                    throw new Error('Circular dependency detected.')
                 }
-                if (!dryRun) {
-                    this.log.info(`Starting job to (re)create table '${name}'.`)
-                    this.log.debug(sql)
-                    const [job] = await this.bigquery.createQueryJob({
-                        query: sql,
-                        destination: await this.tableRef(name),
-                        writeDisposition: 'WRITE_TRUNCATE',
-                    })
-                    this.log.debug(
-                        `Job results for table '${name}'`,
-                        job.metadata,
-                    )
-                    await job.getQueryResults()
-                    this.log.info(`Finished job to (re)create table '${name}'.`)
-                }
-
-                break
+                await this.buildStep(dep, dryRun, usedInRun, [
+                    ...dependencyChain,
+                    model,
+                ])
+            }
+            if (!dryRun) {
+                this.log.info(`Starting job to (re)create table '${name}'.`)
+                this.log.debug(sql)
+                const [job] = await this.bigquery.createQueryJob({
+                    query: sql,
+                    destination: await this.tableRef(name),
+                    writeDisposition: 'WRITE_TRUNCATE',
+                })
+                this.log.debug(
+                  `Job results for table '${name}'`,
+                  job.metadata,
+                )
+                await job.getQueryResults()
+                this.log.info(`Finished job to (re)create table '${name}'.`)
+            }
         }
+
         this.log.info(`Finished building '${name}'.`)
     }
 

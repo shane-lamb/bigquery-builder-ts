@@ -10,9 +10,7 @@ import {
 
 describe('BigQuery Model Builder', () => {
     beforeEach(async () => {
-        builder = new BigqueryModelBuilder(bq, {
-            nameTransform: localNameTransform(datasetName),
-        })
+        builder = newBuilder()
         const dataset = bq.dataset(datasetName)
         const [exists] = await dataset.exists()
         if (exists) {
@@ -163,6 +161,32 @@ describe('BigQuery Model Builder', () => {
         )
         await firstBuild
     })
+    it('should support external tables', async () => {
+        await givenTableHasData(
+            dailyTempsTable,
+            `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
+        )
+
+        const dependency = externalModel(dailyTempsTable)
+
+        await builder.build(
+            fullRefreshModel(
+                dailyTempsTable2,
+                ({ model }) => `
+                    select *
+                    from ${model(dependency)}
+                `,
+            ),
+        )
+
+        expect(await tableRows(dailyTempsTable2)).toEqual([
+            {
+                record_date: new BigQueryDate('2024-01-01'),
+                city: 'Brisbane',
+                temp_c: 30,
+            },
+        ])
+    })
 })
 
 let builder: BigqueryModelBuilder
@@ -192,6 +216,18 @@ function fullRefreshModel(
     }
 }
 
+function externalModel(tableName: string): BigQueryModel {
+    return {
+        name: { table: tableName },
+        type: ModelType.External,
+    }
+}
+
+async function givenTableHasData(tableName: string, sql: string) {
+    const model = fullRefreshModel(tableName, () => sql)
+    await newBuilder().build(model)
+}
+
 async function tableRows(tableName: string) {
     // check if exists
     const [exists] = await bq.dataset(datasetName).table(tableName).exists()
@@ -201,4 +237,10 @@ async function tableRows(tableName: string) {
     const [rows] = await bq.query(`SELECT *
                                  FROM ${datasetName}.${tableName}`)
     return rows
+}
+
+function newBuilder() {
+    return new BigqueryModelBuilder(bq, {
+        nameTransform: localNameTransform(datasetName),
+    })
 }

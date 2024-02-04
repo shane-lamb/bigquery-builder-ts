@@ -1,0 +1,21 @@
+{
+  "name": "bigquery-builder-ts",
+  "version": "1.0.0",
+  "description": "Specify and materialise BigQuery models. Link models together in a dependency chain/DAG. All in TypeScript.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "prepublish": "tsc",
+    "test": "jest"
+  },
+  "author": "Shane Lamb",
+  "license": "ISC",
+  "devDependencies": {
+    "@google-cloud/bigquery": "^7.3.0",
+    "@jest/globals": "^29.7.0",
+    "jest": "^29.7.0",
+    "prettier": "3.2.4",
+    "ts-jest": "^29.1.1",
+    "typescript": "^5.3.3"
+  }
+}

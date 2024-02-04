@@ -1,5 +1,5 @@
 import { BigQuery, Query, Table } from '@google-cloud/bigquery'
-import { TablePartialName } from './types';
+import { TablePartialName } from './types'
 
 export type TableSchema = { name: string; type: string }[]
 

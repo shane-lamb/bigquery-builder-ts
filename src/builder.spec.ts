@@ -27,8 +27,9 @@ describe('BigQuery Model Builder', () => {
         await builder.build(
             fullRefreshModel(
                 dailyTempsTable,
-                () =>
-                    `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
+                () => `
+                    select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c
+                `,
             ),
         )
 
@@ -43,9 +44,10 @@ describe('BigQuery Model Builder', () => {
     it('should build model dependencies before building model', async () => {
         const dependency = fullRefreshModel(
             dailyTempsTable,
-            () =>
-                `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
-                 select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c`,
+            () => `
+                select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
+                select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c
+            `,
         )
 
         await builder.build(
@@ -93,9 +95,10 @@ describe('BigQuery Model Builder', () => {
         // todo
     })
     it('should not allow different models to have the same name', async () => {
-        const dependencySql = () =>
-            `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
-                 select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c`
+        const dependencySql = () => `
+            select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
+            select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c
+        `
         const dependencyA = fullRefreshModel(dailyTempsTable, dependencySql)
         const dependencyB = fullRefreshModel(dailyTempsTable, dependencySql)
 
@@ -138,7 +141,9 @@ describe('BigQuery Model Builder', () => {
                       from ${model(depA)}`,
         )
 
-        await expect(builder.build(depA)).rejects.toThrowError('Circular dependency detected.')
+        await expect(builder.build(depA)).rejects.toThrowError(
+            'Circular dependency detected.',
+        )
     })
     it('should not allow parallel builds on the same builder', async () => {
         // disallowing as it's not worth implementing this.
@@ -146,8 +151,9 @@ describe('BigQuery Model Builder', () => {
 
         const model = fullRefreshModel(
             dailyTempsTable,
-            () =>
-                `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
+            () => `
+                select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c
+            `,
         )
 
         const firstBuild = builder.build(model)

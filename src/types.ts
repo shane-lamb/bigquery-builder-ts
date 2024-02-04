@@ -1,13 +1,13 @@
 export interface TableFullName {
-    project: string,
-    dataset: string,
-    table: string,
+    project: string
+    dataset: string
+    table: string
 }
 
 export interface TablePartialName {
-    project?: string,
-    dataset?: string,
-    table: string,
+    project?: string
+    dataset?: string
+    table: string
 }
 
 export interface NameResolver {
@@ -45,4 +45,7 @@ interface ExternalBigQueryModel extends BaseBigQueryModel {
     type: ModelType.External
 }
 
-export type BigQueryModel = IncrementalBigQueryModel | FullRefreshBigQueryModel | ExternalBigQueryModel
+export type BigQueryModel =
+    | IncrementalBigQueryModel
+    | FullRefreshBigQueryModel
+    | ExternalBigQueryModel

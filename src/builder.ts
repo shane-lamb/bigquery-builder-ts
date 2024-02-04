@@ -32,11 +32,18 @@ export class BigqueryModelBuilder {
         }
         this.isBuilding = true
         await this.buildStep(model, true, {})
-        await this.buildStep(model, false,{})
+        await this.buildStep(model, false, {})
         this.isBuilding = false
     }
 
-    private async buildStep(model: BigQueryModel, dryRun: boolean, usedInRun: { [name: string]: BigQueryModel }, dependencyChain: BigQueryModel[] = []) {
+    private async buildStep(
+        model: BigQueryModel,
+        dryRun: boolean,
+        usedInRun: {
+            [name: string]: BigQueryModel
+        },
+        dependencyChain: BigQueryModel[] = [],
+    ) {
         const name = this.getFullName(model)
 
         if (this.alreadyBuilt(model, name.toString(), usedInRun)) {
@@ -63,9 +70,12 @@ export class BigqueryModelBuilder {
                     if (dependencyChain.includes(dep)) {
                         throw new Error('Circular dependency detected.')
                     }
-                    await this.buildStep(dep, dryRun, usedInRun, [...dependencyChain, model])
+                    await this.buildStep(dep, dryRun, usedInRun, [
+                        ...dependencyChain,
+                        model,
+                    ])
                 }
-                if(!dryRun) {
+                if (!dryRun) {
                     this.log.info(`Starting job to (re)create table '${name}'.`)
                     this.log.debug(sql)
                     const [job] = await this.bigquery.createQueryJob({
@@ -73,7 +83,10 @@ export class BigqueryModelBuilder {
                         destination: await this.tableRef(name),
                         writeDisposition: 'WRITE_TRUNCATE',
                     })
-                    this.log.debug(`Job results for table '${name}'`, job.metadata)
+                    this.log.debug(
+                        `Job results for table '${name}'`,
+                        job.metadata,
+                    )
                     await job.getQueryResults()
                     this.log.info(`Finished job to (re)create table '${name}'.`)
                 }
@@ -91,7 +104,11 @@ export class BigqueryModelBuilder {
         }
     }
 
-    private alreadyBuilt(model: BigQueryModel, name: string, usedInRun: { [name: string]: BigQueryModel }) {
+    private alreadyBuilt(
+        model: BigQueryModel,
+        name: string,
+        usedInRun: { [name: string]: BigQueryModel },
+    ) {
         const modelWithSameName = usedInRun[name]
         if (modelWithSameName) {
             if (modelWithSameName === model) {
@@ -113,7 +130,7 @@ export class BigqueryModelBuilder {
             this.log.debug(`Dataset '${name.dataset}' already exists.`)
         } else {
             this.log.debug(
-              `Dataset '${name.dataset}' doesn't already exist. Creating it.`,
+                `Dataset '${name.dataset}' doesn't already exist. Creating it.`,
             )
             await dataset.create()
         }

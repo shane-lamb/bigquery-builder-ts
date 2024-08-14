@@ -8,7 +8,7 @@ import {
     localNameTransform,
 } from './local-bigquery'
 
-describe('BigQuery Model Builder', () => {
+describe('BigQuery Model Builder (local/emulator tests)', () => {
     beforeEach(async () => {
         builder = newBuilder()
         const dataset = bq.dataset(datasetName)
@@ -24,14 +24,14 @@ describe('BigQuery Model Builder', () => {
     it('should build a simple model with no dependencies', async () => {
         await builder.build(
             fullRefreshModel(
-                dailyTempsTable,
+                'daily_temps',
                 () => `
                     select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c
                 `,
             ),
         )
 
-        expect(await tableRows(dailyTempsTable)).toEqual([
+        expect(await tableRows('daily_temps')).toEqual([
             {
                 record_date: new BigQueryDate('2024-01-01'),
                 city: 'Brisbane',
@@ -41,7 +41,7 @@ describe('BigQuery Model Builder', () => {
     })
     it('should build model dependencies before building model', async () => {
         const dependency = fullRefreshModel(
-            dailyTempsTable,
+            'daily_temps',
             () => `
                 select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
                 select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c
@@ -50,7 +50,7 @@ describe('BigQuery Model Builder', () => {
 
         await builder.build(
             fullRefreshModel(
-                dailyTempsTable2,
+                'filtered_daily_temps',
                 ({ model }) => `
                     select *
                     from ${model(dependency)}
@@ -59,7 +59,7 @@ describe('BigQuery Model Builder', () => {
             ),
         )
 
-        expect(await tableRows(dailyTempsTable2)).toEqual([
+        expect(await tableRows('filtered_daily_temps')).toEqual([
             {
                 record_date: new BigQueryDate('2024-01-02'),
                 city: 'Brisbane',
@@ -69,13 +69,13 @@ describe('BigQuery Model Builder', () => {
     })
     it('should build the same model only once (in the same run)', async () => {
         let builtTimes = 0
-        const dependency = fullRefreshModel(dailyTempsTable, () => {
+        const dependency = fullRefreshModel('daily_temps', () => {
             builtTimes++
             return `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`
         })
 
         const model = fullRefreshModel(
-            dailyTempsTable2,
+            'combined_daily_temps',
             ({ model }) => `
                 select *
                 from ${model(dependency)}
@@ -99,11 +99,11 @@ describe('BigQuery Model Builder', () => {
             select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
             select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c
         `
-        const dependencyA = fullRefreshModel(dailyTempsTable, dependencySql)
-        const dependencyB = fullRefreshModel(dailyTempsTable, dependencySql)
+        const dependencyA = fullRefreshModel('daily_temps', dependencySql)
+        const dependencyB = fullRefreshModel('daily_temps', dependencySql)
 
         const model = fullRefreshModel(
-            dailyTempsTable2,
+            'combined_daily_temps',
             ({ model }) => `
                 select *
                 from ${model(dependencyA)}
@@ -114,11 +114,11 @@ describe('BigQuery Model Builder', () => {
         )
 
         await expect(builder.build(model)).rejects.toThrowError(
-            `Different models can't use the same name: '${localBigQueryProject}.${datasetName}.${dailyTempsTable}'.`,
+            `Different models can't use the same name: '${localBigQueryProject}.${datasetName}.${'daily_temps'}'.`,
         )
 
-        expect(await tableRows(dailyTempsTable)).toEqual([])
-        expect(await tableRows(dailyTempsTable2)).toEqual([])
+        expect(await tableRows('daily_temps')).toEqual([])
+        expect(await tableRows('combined_daily_temps')).toEqual([])
     })
     it('should not allow circular dependencies', async () => {
         let depA: BigQueryModel
@@ -150,7 +150,7 @@ describe('BigQuery Model Builder', () => {
         // as it is, this would have unpredictable results.
 
         const model = fullRefreshModel(
-            dailyTempsTable,
+            'daily_temps',
             () => `
                 select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c
             `,
@@ -165,15 +165,15 @@ describe('BigQuery Model Builder', () => {
     })
     it('should support external tables', async () => {
         await givenTableHasData(
-            dailyTempsTable,
+            'daily_temps',
             `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
         )
 
-        const dependency = externalModel(dailyTempsTable)
+        const dependency = externalModel('daily_temps')
 
         await builder.build(
             fullRefreshModel(
-                dailyTempsTable2,
+                'table_with_dependency_on_daily_temps',
                 ({ model }) => `
                     select *
                     from ${model(dependency)}
@@ -181,7 +181,7 @@ describe('BigQuery Model Builder', () => {
             ),
         )
 
-        expect(await tableRows(dailyTempsTable2)).toEqual([
+        expect(await tableRows('table_with_dependency_on_daily_temps')).toEqual([
             {
                 record_date: new BigQueryDate('2024-01-01'),
                 city: 'Brisbane',
@@ -194,18 +194,8 @@ describe('BigQuery Model Builder', () => {
 let builder: BigQueryModelBuilder
 
 const datasetName = 'test_dataset'
-const dailyTempsTable = 'daily_temps'
-const dailyTempsTable2 = 'daily_temps_2'
-const dailyTempsSchema = [
-    { name: 'record_date', type: 'DATE' },
-    { name: 'city', type: 'STRING' },
-    { name: 'temp_c', type: 'FLOAT' },
-]
 
-const bq = localBigQuery({
-    [dailyTempsTable]: dailyTempsSchema,
-    [dailyTempsTable2]: dailyTempsSchema,
-})
+const bq = localBigQuery()
 
 function fullRefreshModel(
     tableName: string,

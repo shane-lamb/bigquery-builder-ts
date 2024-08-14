@@ -18,9 +18,16 @@ Considering:
 - "Incremental" model type
 - Ability to specify table partitioning
 
+## Setup
+
+```bash
+asdf install
+npm install
+```
+
 ## Running tests
 
 Start up a bigquery emulator like so:
 ```
-docker run -p 9050:9050 -it ghcr.io/goccy/bigquery-emulator:latest --project=local-test-project
+docker run -p 9050:9050 --platform linux/amd64 -it ghcr.io/goccy/bigquery-emulator:latest --project=local-test-project
 ```

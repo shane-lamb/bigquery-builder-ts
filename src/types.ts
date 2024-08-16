@@ -1,3 +1,6 @@
+import bigquery from '@google-cloud/bigquery/build/src/types'
+import ITimePartitioning = bigquery.ITimePartitioning
+
 export interface TableFullName {
     project: string
     dataset: string
@@ -15,7 +18,7 @@ export interface NameResolver {
     model: (model: BigQueryModel) => TableFullName
 }
 
-type NonEmptyArray<T> = [T, ...T[]]
+export type NonEmptyArray<T> = [T, ...T[]]
 
 export enum ModelType {
     Incremental,
@@ -27,7 +30,7 @@ interface BaseBigQueryModel {
     name: TablePartialName
     type: ModelType
     clusterBy?: NonEmptyArray<string>
-    partitionBy?: unknown // todo
+    timePartitioning?: ITimePartitioning
 }
 
 interface IncrementalBigQueryModel extends BaseBigQueryModel {

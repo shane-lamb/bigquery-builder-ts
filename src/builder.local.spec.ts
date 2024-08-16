@@ -92,7 +92,7 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
         expect(builtTimes).toBe(2)
     })
     it('should build the same model only once (in separate runs)', async () => {
-        // todo
+        // todo: should handle this with optional run ID/key instead, which would rely on DB-stored properties
     })
     it('should not allow different models to have the same name', async () => {
         const dependencySql = () => `
@@ -181,13 +181,15 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
             ),
         )
 
-        expect(await tableRows('table_with_dependency_on_daily_temps')).toEqual([
-            {
-                record_date: new BigQueryDate('2024-01-01'),
-                city: 'Brisbane',
-                temp_c: 30,
-            },
-        ])
+        expect(await tableRows('table_with_dependency_on_daily_temps')).toEqual(
+            [
+                {
+                    record_date: new BigQueryDate('2024-01-01'),
+                    city: 'Brisbane',
+                    temp_c: 30,
+                },
+            ],
+        )
     })
 })
 

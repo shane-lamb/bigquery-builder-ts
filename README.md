@@ -9,14 +9,13 @@ Very much a work in progress right now!
 
 Implemented:
 - "Full Refresh" and "External" model types
+- Ability to specify table clustering and partitioning
 
 Planned:
-- Ability to specify table clustering key/s
 - Cost tracking (log run information to BigQuery table and ability to cap spend)
 
 Considering:
 - "Incremental" model type
-- Ability to specify table partitioning
 
 ## Setup
 

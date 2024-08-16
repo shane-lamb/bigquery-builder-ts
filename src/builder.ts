@@ -6,6 +6,7 @@ import {
     ModelType,
     NameResolver,
     TablePartialName,
+    FullRefreshBigQueryModel,
 } from './types'
 
 export interface BigQueryModelBuilderConfig {
@@ -60,11 +61,7 @@ export class BigQueryModelBuilder {
                 return this.getFullName(dependency)
             },
         }
-
-        // todo: if already exists, check partitioning and clustering are equal to config
-
-        if (model.type === ModelType.FullRefresh) {
-            const sql = model.sql(resolver)
+        const buildDependencies = async () => {
             for (const dep of dependencies) {
                 if (dependencyChain.includes(dep)) {
                     throw new Error('Circular dependency detected.')
@@ -74,24 +71,40 @@ export class BigQueryModelBuilder {
                     model,
                 ])
             }
+        }
+
+        if (model.type === ModelType.FullRefresh) {
+            const sql = model.sql(resolver)
+            await buildDependencies()
             if (!dryRun) {
-                this.log.info(`Starting job to (re)create table '${name}'.`)
-                this.log.debug(sql)
-                const [job] = await this.bigquery.createQueryJob({
-                    query: sql,
-                    destination: await this.tableRef(name),
-                    writeDisposition: 'WRITE_TRUNCATE',
-                })
-                this.log.debug(
-                  `Job results for table '${name}'`,
-                  job.metadata,
-                )
-                await job.getQueryResults()
-                this.log.info(`Finished job to (re)create table '${name}'.`)
+                await this.buildFullRefreshModel(name, sql, model)
             }
         }
 
         this.log.info(`Finished building '${name}'.`)
+    }
+
+    private async buildFullRefreshModel(
+        name: TableFullName,
+        sql: string,
+        model: FullRefreshBigQueryModel,
+    ) {
+        this.log.info(`Starting job to (re)create table '${name}'.`)
+        this.log.debug(sql)
+        const [job] = await this.bigquery.createQueryJob({
+            query: sql,
+            destination: await this.tableRef(name),
+            writeDisposition: 'WRITE_TRUNCATE',
+            clustering: model.clusterBy
+                ? {
+                      fields: model.clusterBy,
+                  }
+                : undefined,
+            timePartitioning: model.timePartitioning,
+        })
+        this.log.debug(`Job results for table '${name}'`, job.metadata)
+        await job.getQueryResults()
+        this.log.info(`Finished job to (re)create table '${name}'.`)
     }
 
     getFullName(model: BigQueryModel) {

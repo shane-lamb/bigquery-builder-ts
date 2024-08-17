@@ -29,22 +29,25 @@ export enum ModelType {
 interface BaseBigQueryModel {
     name: TablePartialName
     type: ModelType
+}
+
+export interface BaseBuildableBigQueryModel extends BaseBigQueryModel {
     clusterBy?: NonEmptyArray<string>
     timePartitioning?: ITimePartitioning
 }
 
-interface IncrementalBigQueryModel extends BaseBigQueryModel {
+export interface IncrementalBigQueryModel extends BaseBuildableBigQueryModel {
     type: ModelType.Incremental
-    uniqueKey: NonEmptyArray<string>
-    getSql: (ref: NameResolver, incremental: boolean) => string
+    sqlIncremental: (ref: NameResolver, columns: string[]) => string
+    sqlFull: (ref: NameResolver) => string
 }
 
-export interface FullRefreshBigQueryModel extends BaseBigQueryModel {
+export interface FullRefreshBigQueryModel extends BaseBuildableBigQueryModel {
     type: ModelType.FullRefresh
     sql: (ref: NameResolver) => string
 }
 
-interface ExternalBigQueryModel extends BaseBigQueryModel {
+export interface ExternalBigQueryModel extends BaseBigQueryModel {
     type: ModelType.External
 }
 

@@ -1,4 +1,4 @@
-import { BigQuery } from '@google-cloud/bigquery'
+import { BigQuery, Table, TableMetadata } from '@google-cloud/bigquery'
 
 import {
     BigQueryModel,
@@ -6,7 +6,7 @@ import {
     ModelType,
     NameResolver,
     TablePartialName,
-    FullRefreshBigQueryModel,
+    BaseBuildableBigQueryModel,
 } from './types'
 
 export interface BigQueryModelBuilderConfig {
@@ -32,9 +32,12 @@ export class BigQueryModelBuilder {
             throw new Error(`Can't build until previous build has finished.`)
         }
         this.isBuilding = true
-        await this.buildStep(model, true, {})
-        await this.buildStep(model, false, {})
-        this.isBuilding = false
+        try {
+            await this.buildStep(model, true, {})
+            await this.buildStep(model, false, {})
+        } finally {
+            this.isBuilding = false
+        }
     }
 
     private async buildStep(
@@ -45,6 +48,10 @@ export class BigQueryModelBuilder {
         },
         dependencyChain: BigQueryModel[] = [],
     ) {
+        if (model.type === ModelType.External) {
+            return
+        }
+
         const name = this.getFullName(model)
 
         if (this.alreadyBuilt(model, name.toString(), usedInRun)) {
@@ -73,27 +80,58 @@ export class BigQueryModelBuilder {
             }
         }
 
-        if (model.type === ModelType.FullRefresh) {
-            const sql = model.sql(resolver)
-            await buildDependencies()
-            if (!dryRun) {
-                await this.buildFullRefreshModel(name, sql, model)
+        const table = this.bigquery.dataset(name.dataset).table(name.table)
+        const metadata = await this.getMetadata(table)
+
+        const modelIsFullRefresh = model.type === ModelType.FullRefresh
+        const doFullRefresh = modelIsFullRefresh || !metadata
+
+        const sql = doFullRefresh
+            ? modelIsFullRefresh
+                ? model.sql(resolver)
+                : model.sqlFull(resolver)
+            : model.sqlIncremental(
+                  resolver,
+                  metadata.schema?.fields?.map((f) => f.name) as string[],
+              )
+
+        await buildDependencies()
+
+        if (!dryRun) {
+            await this.createDatasetIfNotExists(table)
+
+            if (doFullRefresh) {
+                await this.fullRefreshJob(name, table, sql, model)
+            } else {
+                await this.incrementalJob(name, sql)
             }
         }
 
         this.log.info(`Finished building '${name}'.`)
     }
 
-    private async buildFullRefreshModel(
-        name: TableFullName,
-        sql: string,
-        model: FullRefreshBigQueryModel,
-    ) {
-        this.log.info(`Starting job to (re)create table '${name}'.`)
+    private async incrementalJob(name: TableFullName, sql: string) {
+        this.log.info(`Starting job to incrementally update table '${name}'.`)
         this.log.debug(sql)
         const [job] = await this.bigquery.createQueryJob({
             query: sql,
-            destination: await this.tableRef(name),
+        })
+        this.log.debug(`Job results for table '${name}'`, job.metadata)
+        await job.getQueryResults()
+        this.log.info(`Finished job to incrementally update table '${name}'.`)
+    }
+
+    private async fullRefreshJob(
+        name: TableFullName,
+        table: Table,
+        sql: string,
+        model: BaseBuildableBigQueryModel,
+    ) {
+        this.log.info(`Starting job to fully refresh table '${name}'.`)
+        this.log.debug(sql)
+        const [job] = await this.bigquery.createQueryJob({
+            query: sql,
+            destination: table,
             writeDisposition: 'WRITE_TRUNCATE',
             clustering: model.clusterBy
                 ? {
@@ -133,28 +171,37 @@ export class BigQueryModelBuilder {
         return false
     }
 
-    private async tableRef(name: TableFullName) {
-        this.log.debug(`Checking if dataset '${name.dataset}' exists.`)
-        const dataset = this.bigquery.dataset(name.dataset)
+    private async createDatasetIfNotExists(table: Table) {
+        const dataset = table.dataset
         const [datasetExists] = await dataset.exists()
         if (datasetExists) {
-            this.log.debug(`Dataset '${name.dataset}' already exists.`)
+            this.log.debug(`Dataset '${dataset.id}' already exists.`)
         } else {
             this.log.debug(
-                `Dataset '${name.dataset}' doesn't already exist. Creating it.`,
+                `Dataset '${dataset.id}' doesn't already exist. Creating it.`,
             )
             await dataset.create()
         }
+    }
 
-        this.log.debug(`Checking if table '${name.table}' exists.`)
-        const table = dataset.table(name.table)
-        const [tableExists] = await table.exists()
-        if (tableExists) {
-            this.log.debug(`Table '${name.table}' already exists.`)
-        } else {
-            this.log.debug(`Table '${name.table}' doesn't already exist.`)
+    private async getMetadata(table: Table): Promise<null | TableMetadata> {
+        const [datasetExists] = await table.dataset.exists()
+        if (!datasetExists) {
+            this.log.debug(
+                `Dataset '${table.dataset.id}' doesn't already exist.`,
+            )
+            return null
         }
+        this.log.debug(`Dataset '${table.dataset.id}' already exists.`)
 
-        return table
+        const [tableExists] = await table.exists()
+        if (!tableExists) {
+            this.log.debug(`Table '${table.id}' doesn't already exist.`)
+            return null
+        }
+        this.log.debug(`Table '${table.id}' already exists.`)
+
+        const [metadata] = await table.getMetadata()
+        return metadata
     }
 }

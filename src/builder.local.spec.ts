@@ -1,13 +1,9 @@
-import { BigQueryModel, FullRefreshBigQueryModel, ModelType } from './types'
+import { BigQueryModel } from './types'
 import { describe, it, expect, beforeEach } from '@jest/globals'
 import { BigQueryModelBuilder } from './builder'
 import { BigQueryDate } from '@google-cloud/bigquery'
-import {
-    localBigQuery,
-    localBigQueryProject,
-    localNameTransform,
-} from './local-bigquery'
-import { externalModel } from './model-helpers'
+import { localBigQuery, localBigQueryProject } from './test-utils'
+import { externalModel, fullRefreshModel } from './model-helpers'
 
 describe('BigQuery Model Builder (local/emulator tests)', () => {
     beforeEach(async () => {
@@ -24,12 +20,12 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
     })
     it('should build a simple model with no dependencies', async () => {
         await builder.build(
-            fullRefreshModel(
-                'daily_temps',
-                () => `
+            fullRefreshModel({
+                name: { table: 'daily_temps' },
+                sql: () => `
                     select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c
                 `,
-            ),
+            }),
         )
 
         expect(await tableRows('daily_temps')).toEqual([
@@ -41,23 +37,23 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
         ])
     })
     it('should build model dependencies before building model', async () => {
-        const dependency = fullRefreshModel(
-            'daily_temps',
-            () => `
+        const dependency = fullRefreshModel({
+            name: { table: 'daily_temps' },
+            sql: () => `
                 select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
                 select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c
             `,
-        )
+        })
 
         await builder.build(
-            fullRefreshModel(
-                'filtered_daily_temps',
-                ({ model }) => `
+            fullRefreshModel({
+                name: { table: 'filtered_daily_temps' },
+                sql: ({ model }) => `
                     select *
                     from ${model(dependency)}
                     WHERE temp_c > 30
                 `,
-            ),
+            }),
         )
 
         expect(await tableRows('filtered_daily_temps')).toEqual([
@@ -70,21 +66,24 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
     })
     it('should build the same model only once (in the same run)', async () => {
         let builtTimes = 0
-        const dependency = fullRefreshModel('daily_temps', () => {
-            builtTimes++
-            return `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`
+        const dependency = fullRefreshModel({
+            name: { table: 'daily_temps' },
+            sql: () => {
+                builtTimes++
+                return `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`
+            },
         })
 
-        const model = fullRefreshModel(
-            'combined_daily_temps',
-            ({ model }) => `
+        const model = fullRefreshModel({
+            name: { table: 'combined_daily_temps' },
+            sql: ({ model }) => `
                 select *
                 from ${model(dependency)}
                 union all
                 select *
                 from ${model(dependency)}
             `,
-        )
+        })
         await builder.build(model)
 
         // we expect the sql method to be invoked twice, once for the dry run
@@ -100,19 +99,25 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
             select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c union all
             select date('2024-01-02') as record_date, 'Brisbane' as city, 31 as temp_c
         `
-        const dependencyA = fullRefreshModel('daily_temps', dependencySql)
-        const dependencyB = fullRefreshModel('daily_temps', dependencySql)
+        const dependencyA = fullRefreshModel({
+            name: { table: 'daily_temps' },
+            sql: dependencySql,
+        })
+        const dependencyB = fullRefreshModel({
+            name: { table: 'daily_temps' },
+            sql: dependencySql,
+        })
 
-        const model = fullRefreshModel(
-            'combined_daily_temps',
-            ({ model }) => `
+        const model = fullRefreshModel({
+            name: { table: 'combined_daily_temps' },
+            sql: ({ model }) => `
                 select *
                 from ${model(dependencyA)}
                 union all
                 select *
                 from ${model(dependencyB)}
             `,
-        )
+        })
 
         await expect(builder.build(model)).rejects.toThrowError(
             `Different models can't use the same name: \`${localBigQueryProject}.${datasetName}.daily_temps\`.`,
@@ -126,21 +131,21 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
         let depB: BigQueryModel
         let depC: BigQueryModel
 
-        depA = fullRefreshModel(
-            'a',
-            ({ model }) => `select *
-                            from ${model(depB)}`,
-        )
-        depB = fullRefreshModel(
-            'b',
-            ({ model }) => `select *
-                            from ${model(depC)}`,
-        )
-        depC = fullRefreshModel(
-            'c',
-            ({ model }) => `select *
-                            from ${model(depA)}`,
-        )
+        depA = fullRefreshModel({
+            name: { table: 'a' },
+            sql: ({ model }) => `select *
+                                 from ${model(depB)}`,
+        })
+        depB = fullRefreshModel({
+            name: { table: 'b' },
+            sql: ({ model }) => `select *
+                                 from ${model(depC)}`,
+        })
+        depC = fullRefreshModel({
+            name: { table: 'c' },
+            sql: ({ model }) => `select *
+                                 from ${model(depA)}`,
+        })
 
         await expect(builder.build(depA)).rejects.toThrowError(
             'Circular dependency detected.',
@@ -150,12 +155,12 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
         // disallowing as it's not worth implementing this.
         // as it is, this would have unpredictable results.
 
-        const model = fullRefreshModel(
-            'daily_temps',
-            () => `
+        const model = fullRefreshModel({
+            name: { table: 'daily_temps' },
+            sql: () => `
                 select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c
             `,
-        )
+        })
 
         const firstBuild = builder.build(model)
 
@@ -173,13 +178,11 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
         const dependency = externalModel({ table: 'daily_temps' })
 
         await builder.build(
-            fullRefreshModel(
-                'table_with_dependency_on_daily_temps',
-                ({ model }) => `
-                    select *
-                    from ${model(dependency)}
-                `,
-            ),
+            fullRefreshModel({
+                name: { table: 'table_with_dependency_on_daily_temps' },
+                sql: ({ model }) => `select *
+                                     from ${model(dependency)}`,
+            }),
         )
 
         expect(await tableRows('table_with_dependency_on_daily_temps')).toEqual(
@@ -200,19 +203,11 @@ const datasetName = 'test_dataset'
 
 const bq = localBigQuery()
 
-function fullRefreshModel(
-    tableName: string,
-    sql: FullRefreshBigQueryModel['sql'],
-): BigQueryModel {
-    return {
-        name: { table: tableName },
-        type: ModelType.FullRefresh,
-        sql,
-    }
-}
-
 async function givenTableHasData(tableName: string, sql: string) {
-    const model = fullRefreshModel(tableName, () => sql)
+    const model = fullRefreshModel({
+        name: { table: tableName },
+        sql: () => sql,
+    })
     await newBuilder().build(model)
 }
 
@@ -228,7 +223,5 @@ async function tableRows(tableName: string) {
 }
 
 function newBuilder() {
-    return new BigQueryModelBuilder(bq, {
-        nameTransform: localNameTransform(datasetName),
-    })
+    return new BigQueryModelBuilder(bq, { defaultDataset: datasetName })
 }

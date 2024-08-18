@@ -184,6 +184,4 @@ describe('BigQuery Model Builder (using real BigQuery)', () => {
 const project = 'predictive-fx-418804'
 const dataset = 'test_dataset'
 const bq = new BigQuery({ projectId: project })
-const builder = new BigQueryModelBuilder(bq, {
-    nameTransform: (partialName) => ({ project, dataset, ...partialName }),
-})
+const builder = new BigQueryModelBuilder(bq, { defaultDataset: dataset })

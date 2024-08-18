@@ -1,5 +1,4 @@
 import { BigQuery } from '@google-cloud/bigquery'
-import { TablePartialName } from './types'
 
 export const localBigQueryProject = 'local-test-project'
 
@@ -12,12 +11,4 @@ export function localBigQuery() {
             projectId: localBigQueryProject,
             apiEndpoint: 'http://0.0.0.0:9050',
         }))
-}
-
-export function localNameTransform(datasetName: string) {
-    return (partialName: TablePartialName) => ({
-        project: localBigQueryProject,
-        dataset: datasetName,
-        ...partialName,
-    })
 }

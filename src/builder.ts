@@ -5,15 +5,15 @@ import {
     TableFullName,
     ModelType,
     NameResolver,
-    TablePartialName,
     BaseBuildableBigQueryModel,
 } from './types'
 
 export interface BigQueryModelBuilderConfig {
-    nameTransform: (partialName: TablePartialName) => TableFullName
+    defaultDataset?: string
+    // nameTransform: (partialName: TablePartialName) => TablePartialName TODO
 }
 
-export interface Logger {
+interface Logger {
     info: (message: string, props?: any) => void
     debug: (message: string, props?: any) => void
 }
@@ -23,7 +23,7 @@ export class BigQueryModelBuilder {
 
     constructor(
         private bigquery: BigQuery,
-        private config: BigQueryModelBuilderConfig,
+        private config?: BigQueryModelBuilderConfig,
         private log: Logger = console,
     ) {}
 
@@ -145,11 +145,19 @@ export class BigQueryModelBuilder {
         this.log.info(`Finished job to (re)create table '${name}'.`)
     }
 
-    getFullName(model: BigQueryModel) {
-        const name = this.config.nameTransform(model.name)
+    getFullName(model: BigQueryModel): TableFullName & { toString: () => string } {
+        const { name } = model
+        const table = name.table
+        const dataset = name.dataset ?? this.config?.defaultDataset
+        if (!dataset) {
+            throw new Error(`No dataset specified for table '${table}'.`)
+        }
+        const project = name.project ?? this.bigquery.projectId
         return {
-            ...name,
-            toString: () => `\`${name.project}.${name.dataset}.${name.table}\``,
+            project,
+            dataset,
+            table,
+            toString: () => `\`${project}.${dataset}.${table}\``,
         }
     }
 

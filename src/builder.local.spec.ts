@@ -7,6 +7,7 @@ import {
     localBigQueryProject,
     localNameTransform,
 } from './local-bigquery'
+import { externalModel } from './model-helpers'
 
 describe('BigQuery Model Builder (local/emulator tests)', () => {
     beforeEach(async () => {
@@ -114,7 +115,7 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
         )
 
         await expect(builder.build(model)).rejects.toThrowError(
-            `Different models can't use the same name: '${localBigQueryProject}.${datasetName}.${'daily_temps'}'.`,
+            `Different models can't use the same name: \`${localBigQueryProject}.${datasetName}.daily_temps\`.`,
         )
 
         expect(await tableRows('daily_temps')).toEqual([])
@@ -169,7 +170,7 @@ describe('BigQuery Model Builder (local/emulator tests)', () => {
             `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
         )
 
-        const dependency = externalModel('daily_temps')
+        const dependency = externalModel({ table: 'daily_temps' })
 
         await builder.build(
             fullRefreshModel(
@@ -207,13 +208,6 @@ function fullRefreshModel(
         name: { table: tableName },
         type: ModelType.FullRefresh,
         sql,
-    }
-}
-
-function externalModel(tableName: string): BigQueryModel {
-    return {
-        name: { table: tableName },
-        type: ModelType.External,
     }
 }
 

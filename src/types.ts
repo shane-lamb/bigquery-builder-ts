@@ -26,7 +26,7 @@ export enum ModelType {
     External,
 }
 
-interface BaseBigQueryModel {
+export interface BaseBigQueryModel {
     name: TablePartialName
     type: ModelType
 }

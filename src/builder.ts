@@ -149,7 +149,7 @@ export class BigQueryModelBuilder {
         const name = this.config.nameTransform(model.name)
         return {
             ...name,
-            toString: () => `${name.project}.${name.dataset}.${name.table}`,
+            toString: () => `\`${name.project}.${name.dataset}.${name.table}\``,
         }
     }
 
@@ -164,7 +164,7 @@ export class BigQueryModelBuilder {
                 return true
             }
             throw new Error(
-                `Different models can't use the same name: '${name}'.`,
+                `Different models can't use the same name: ${name}.`,
             )
         }
         usedInRun[name] = model

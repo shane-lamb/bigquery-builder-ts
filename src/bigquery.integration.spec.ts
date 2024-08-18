@@ -1,53 +1,46 @@
 import { describe, expect, it } from '@jest/globals'
 import { BigQuery, BigQueryDate } from '@google-cloud/bigquery'
-import {
-    ExternalBigQueryModel,
-    FullRefreshBigQueryModel,
-    IncrementalBigQueryModel,
-    ModelType,
-    NameResolver,
-} from './types'
 import { BigQueryModelBuilder } from './builder'
 import { Big } from 'big.js'
+import {
+    externalModel,
+    fullRefreshModel,
+    incrementalModel,
+} from './model-helpers'
 
 describe('BigQuery Model Builder (using real BigQuery)', () => {
     it('should create table with clustering', async () => {
         const table = bq.dataset(dataset).table('daily_temps')
-
         await table.delete().catch(() => {})
 
-        const model: FullRefreshBigQueryModel = {
-            name: { table: 'daily_temps' },
-            type: ModelType.FullRefresh,
-            sql: () =>
-                `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
-            clusterBy: ['record_date'],
-        }
-
-        await builder.build(model)
+        await builder.build(
+            fullRefreshModel({
+                name: { table: 'daily_temps' },
+                sql: () =>
+                    `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
+                clusterBy: ['record_date'],
+            }),
+        )
 
         const [metadata] = await table.getMetadata()
-
         expect(metadata.clustering).toEqual({ fields: ['record_date'] })
     })
     it('should create table with time partitioning', async () => {
         const table = bq.dataset(dataset).table('daily_temps')
-
         await table.delete().catch(() => {})
-        const model: FullRefreshBigQueryModel = {
-            name: { table: 'daily_temps' },
-            type: ModelType.FullRefresh,
-            sql: () =>
-                `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
-            timePartitioning: {
-                field: 'record_date',
-            },
-        }
 
-        await builder.build(model)
+        await builder.build(
+            fullRefreshModel({
+                name: { table: 'daily_temps' },
+                sql: () =>
+                    `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
+                timePartitioning: {
+                    field: 'record_date',
+                },
+            }),
+        )
 
         const [metadata] = await table.getMetadata()
-
         expect(metadata.timePartitioning).toEqual({
             field: 'record_date',
             type: 'DAY',
@@ -55,23 +48,19 @@ describe('BigQuery Model Builder (using real BigQuery)', () => {
     })
     it('should error when clustering/partitioning differs from existing table', async () => {
         const table = bq.dataset(dataset).table('daily_temps')
-
         await table.delete().catch(() => {})
 
-        const model: FullRefreshBigQueryModel = {
+        const model = fullRefreshModel({
             name: { table: 'daily_temps' },
-            type: ModelType.FullRefresh,
             sql: () =>
                 `select date('2024-01-01') as record_date, 'Brisbane' as city, 30 as temp_c`,
             clusterBy: ['record_date', 'city'],
-        }
-
+        })
         await builder.build(model)
 
-        // try to build the table again with a different cluster key
+        // when trying to build again with a different cluster key
         model.clusterBy = ['city', 'record_date']
-
-        // throws with "Incompatible table partitioning specification"
+        // should throw with "Incompatible table partitioning specification"
         await expect(builder.build(model)).rejects.toThrowError()
     })
     it('should support incremental builds', async () => {
@@ -107,39 +96,22 @@ describe('BigQuery Model Builder (using real BigQuery)', () => {
                 amount: 300,
             },
         ])
-        const sourceModel: ExternalBigQueryModel = {
-            name: { table: sourceTableName },
-            type: ModelType.External,
-        }
+        const sourceModel = externalModel({ table: sourceTableName })
 
         const destTableName = 'daily_order_totals-' + Date.now()
         const destTable = bq.dataset(dataset).table(destTableName)
-
-        const getMaxPartition = ({ self }: NameResolver) =>
-            `DECLARE max_partition DATE; SET max_partition = (SELECT MAX(order_placed_on) FROM ${self});`
-        const sql = ({ model }: NameResolver, whereClause: string) => `
-            select client_id, placed_on as order_placed_on, sum(amount) as total_order_amount,
-            from ${model(sourceModel)} ${whereClause}
-            group by client_id, placed_on
-        `
-        const model: IncrementalBigQueryModel = {
+        const model = incrementalModel({
             name: { table: destTableName },
-            type: ModelType.Incremental,
             timePartitioning: {
                 field: 'order_placed_on',
             },
-            sqlFull: (ref) => sql(ref, ''),
-            sqlIncremental: (ref, columns) => `
-                ${getMaxPartition(ref)}
-                MERGE INTO ${ref.self} as dest USING (
-                ${sql(ref, 'WHERE placed_on >= max_partition')}
-                ) as src
-                ON dest.client_id = src.client_id AND dest.order_placed_on = src.order_placed_on
-                WHEN MATCHED THEN UPDATE SET ${columns.map((c) => `dest.${c} = src.${c}`).join(', ')}
-                WHEN NOT MATCHED THEN INSERT ROW
+            mergeKey: ['client_id', 'order_placed_on'],
+            sql: ({ self, model }, incremental) => `
+                SELECT client_id, placed_on as order_placed_on, sum(amount) as total_order_amount,
+                FROM ${model(sourceModel)} ${incremental ? `WHERE placed_on >= (SELECT MAX(order_placed_on) FROM ${self})` : ''}
+                GROUP BY client_id, placed_on
             `,
-        }
-
+        })
         await builder.build(model)
 
         const [rows] = await destTable.getRows()

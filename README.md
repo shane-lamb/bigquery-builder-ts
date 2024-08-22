@@ -3,6 +3,12 @@
 Inspired by [DBT](https://docs.getdbt.com/docs/introduction), but exclusively for BigQuery and 100% in TypeScript.
 Materialises BigQuery tables from models defined in code.
 
+## Install
+
+```
+npm install bigquery-builder-ts
+```
+
 ## How to use
 
 ```ts

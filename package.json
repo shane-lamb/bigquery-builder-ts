@@ -1,6 +1,6 @@
 {
   "name": "bigquery-builder-ts",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Specify and materialise BigQuery models. Link models together in a dependency chain/DAG. All in TypeScript.",
   "repository": "github:shane-lamb/bigquery-builder-ts",
   "main": "dist/index.js",

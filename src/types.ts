@@ -5,6 +5,7 @@ export interface TableFullName {
     project: string
     dataset: string
     table: string
+    toString: () => string
 }
 
 export interface TablePartialName {

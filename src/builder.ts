@@ -10,6 +10,7 @@ import {
 
 export interface BigQueryModelBuilderConfig {
     defaultDataset?: string
+    labels?: { [key: string]: string }
     // nameTransform: (partialName: TablePartialName) => TablePartialName TODO
 }
 
@@ -115,6 +116,7 @@ export class BigQueryModelBuilder {
         this.log.debug(sql)
         const [job] = await this.bigquery.createQueryJob({
             query: sql,
+            labels: { ...this.config?.labels },
         })
         this.log.debug(`Job results for table '${name}'`, job.metadata)
         await job.getQueryResults()
@@ -139,6 +141,7 @@ export class BigQueryModelBuilder {
                   }
                 : undefined,
             timePartitioning: model.timePartitioning,
+            labels: { ...this.config?.labels },
         })
         this.log.debug(`Job results for table '${name}'`, job.metadata)
         await job.getQueryResults()

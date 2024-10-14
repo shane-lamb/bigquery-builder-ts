@@ -60,7 +60,7 @@ export class BigQueryModelBuilder {
             return
         }
 
-        this.log.info(`Started building '${name}'.`)
+        this.log.info('Started building model', { model: name })
 
         const dependencies: BigQueryModel[] = []
         const resolver: NameResolver = {
@@ -109,19 +109,19 @@ export class BigQueryModelBuilder {
             }
         }
 
-        this.log.info(`Finished building '${name}'.`)
+        this.log.info('Finished building model', { model: name })
     }
 
     private async incrementalJob(name: TableFullName, sql: string) {
-        this.log.info(`Starting job to incrementally update table '${name}'.`)
-        this.log.debug(sql)
+        this.log.info('Starting job to incrementally update table.', { table: name})
+        this.log.debug('Incremental update query', { sql })
         const [job] = await this.bigquery.createQueryJob({
             query: sql,
             labels: { ...this.config?.labels },
         })
-        this.log.debug(`Job results for table '${name}'`, job.metadata)
+        this.log.debug('Job results for table available.', { table: name, metadata: job.metadata})
         await job.getQueryResults()
-        this.log.info(`Finished job to incrementally update table '${name}'.`)
+        this.log.info('Finished job to incrementally update table.', { table: name })
     }
 
     private async fullRefreshJob(
@@ -130,8 +130,8 @@ export class BigQueryModelBuilder {
         sql: string,
         model: BaseBuildableBigQueryModel,
     ) {
-        this.log.info(`Starting job to fully refresh table '${name}'.`)
-        this.log.debug(sql)
+        this.log.info('Starting job to fully refresh table.', {table: name})
+        this.log.debug('Full refresh query', { sql })
         const [job] = await this.bigquery.createQueryJob({
             query: sql,
             destination: table,
@@ -144,9 +144,9 @@ export class BigQueryModelBuilder {
             timePartitioning: model.timePartitioning,
             labels: { ...this.config?.labels },
         })
-        this.log.debug(`Job results for table '${name}'`, job.metadata)
+        this.log.debug('Job results for table available.', { table: name, metadata: job.metadata})
         await job.getQueryResults()
-        this.log.info(`Finished job to (re)create table '${name}'.`)
+        this.log.info('Finished job to (re)create table.', { table: name })
     }
 
     getFullName(model: BigQueryModel): TableFullName {
@@ -188,11 +188,9 @@ export class BigQueryModelBuilder {
         const dataset = table.dataset
         const [datasetExists] = await dataset.exists()
         if (datasetExists) {
-            this.log.debug(`Dataset '${dataset.id}' already exists.`)
+            this.log.debug('Dataset already exists.', {dataset: dataset.id})
         } else {
-            this.log.debug(
-                `Dataset '${dataset.id}' doesn't already exist. Creating it.`,
-            )
+            this.log.debug('Dataset doesn\'t already exist. Creating it.', {dataset: dataset.id})
             await dataset.create()
         }
     }
@@ -201,18 +199,18 @@ export class BigQueryModelBuilder {
         const [datasetExists] = await table.dataset.exists()
         if (!datasetExists) {
             this.log.debug(
-                `Dataset '${table.dataset.id}' doesn't already exist.`,
+                'Dataset doesn\'t already exist.', {dataset: table.dataset.id}
             )
             return null
         }
-        this.log.debug(`Dataset '${table.dataset.id}' already exists.`)
+        this.log.debug('Dataset already exists.', {dataset: table.dataset.id})
 
         const [tableExists] = await table.exists()
         if (!tableExists) {
-            this.log.debug(`Table '${table.id}' doesn't already exist.`)
+            this.log.debug('Table doesn\'t already exist.', {table: table.id})
             return null
         }
-        this.log.debug(`Table '${table.id}' already exists.`)
+        this.log.debug('Table already exists.', {table: table.id})
 
         const [metadata] = await table.getMetadata()
         return metadata
